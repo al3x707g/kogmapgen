@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from vertex import Vertex
+from src.generator.graph.vertex import Vertex
 
 
 @dataclass(frozen=True)
