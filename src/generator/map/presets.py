@@ -3,7 +3,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Preset:
-    grid_size: int
+    border_width: int
+    grid_width: int
+    grid_height: int
     start_x: int
     start_y: int
     end_x: int
