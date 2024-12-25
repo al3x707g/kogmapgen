@@ -67,19 +67,35 @@ class Generator:
                     current = stack[-1]
 
     def get_unvisited_neighbours(self, vertex: Vertex) -> list[Vertex]:
-        result = []
-        x, y = vertex.x, vertex.y
-
         potential_neighbours = [
-            (x - self.distance_x, y) if x - self.distance_x >= 10 else None,
-            (x + self.distance_x, y) if x + self.distance_x < self.preset.border_width + self.preset.mesh_size * self.distance_x else None,
-            (x, y - self.distance_y) if y - self.distance_y >= 10 else None,
-            (x, y + self.distance_y) if y + self.distance_y < self.preset.border_width + self.preset.mesh_size * self.distance_y else None
+            self.get_vertex_by_offset(vertex, -1, 0),
+            self.get_vertex_by_offset(vertex, 1, 0),
+
+            self.get_vertex_by_offset(vertex, 0, -1),
+            self.get_vertex_by_offset(vertex, 0, 1)
         ]
 
-        for coord in filter(None, potential_neighbours):
-            neighbour = self.graph.vertex_at(*coord)
-            if neighbour and not neighbour.visited:
-                result.append(neighbour)
+        filtered_neighbours = list(
+            filter(
+                lambda v: v is not None and not v.visited,
+                potential_neighbours
+            )
+        )
 
-        return result
+        return filtered_neighbours
+
+    def get_vertex_by_offset(self, vertex: Vertex, offset_x: int, offset_y: int) -> Vertex | None:
+        border_width = self.preset.border_width
+
+        # Calculate the target vertex coordinates
+        target_x = border_width + vertex.x + self.distance_x * offset_x
+        target_y = border_width + vertex.y + self.distance_y * offset_y
+
+        # Check if the vertex is within the border of the grid
+        if not border_width < target_x < self.preset.grid_width - border_width:
+            return None
+
+        if not border_width < target_y < self.preset.grid_height - border_width:
+            return None
+
+        return Vertex(target_x, target_y)
