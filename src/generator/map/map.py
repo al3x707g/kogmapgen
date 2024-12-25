@@ -19,7 +19,7 @@ class Map:
         self.grid = grid
 
     def get_distances(self) -> tuple[int, int]:
-        calc_distance = lambda val: int((val - 2 * self.preset.border_width) / (self.preset.mesh_size - 1))
+        calc_distance = lambda val: int((val - 2 * self.preset.border_width) / (self.preset.mesh_size + 1))
 
         distance_x = calc_distance(self.preset.grid_width)
         distance_y = calc_distance(self.preset.grid_height)
