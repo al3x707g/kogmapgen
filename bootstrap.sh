@@ -6,5 +6,5 @@ if [ -d "venv" ]; then
 fi
 
 # Create new venv and install dependencies
-python -m venv .venv
-pip install -r requirements.txt
+python3 -m venv .venv
+./.venv/bin/pip install -r requirements.txt
