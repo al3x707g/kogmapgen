@@ -1,6 +1,7 @@
 from unittest import TestCase
 
 from src.generator.generator import Generator
+from src.generator.graph.graph import Graph
 from src.generator.map.map import Map
 from src.generator.util.presets import Preset
 
@@ -24,6 +25,7 @@ class TestGenerator(TestCase):
         self.gen = Generator(self.map)
 
     def test_create_vertex_mesh(self):
+        self.gen.graph = Graph()
         self.gen.create_vertex_mesh()
 
         self.assertEqual(len(self.gen.graph.vertices), 9)
