@@ -1,5 +1,5 @@
-from vertex import Vertex
-from edge import Edge
+from src.generator.graph.edge import Edge
+from src.generator.graph.vertex import Vertex
 
 
 class Graph:
