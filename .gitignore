@@ -1,5 +1,3 @@
 .venv
+.coverage
 .idea
-
-__pycache__/
-*.pyc
