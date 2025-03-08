@@ -4,6 +4,7 @@ from src.generator.graph.edge import Edge
 from src.generator.graph.graph import Graph
 from src.generator.graph.vertex import Vertex
 from src.generator.map.map import Map
+from src.generator.util.blocks import BlockType
 
 
 class Generator:
@@ -12,43 +13,39 @@ class Generator:
     def __init__(self, game_map: Map) -> None:
         self.map = game_map
         self.preset = game_map.preset
-        self.distance_x, self.distance_y = self.map.get_distances()
+        self.spacing = game_map.preset.mesh_spacing
 
     def generate_from_graph(self) -> None:
         self.graph = Graph()
 
         self.create_vertex_mesh()
+        self.connect_graph_random()
+        self.find_path()
 
     def create_vertex_mesh(self) -> None:
         if not self.graph:
             return
 
-        border = self.preset.border_width
-        mesh_size = self.preset.mesh_size
+        mesh_size = self.preset.mesh_size + 1
 
         [self.graph.add_vertex(
             Vertex(
-                border + self.distance_x * x,
-                border + self.distance_y * y
+                self.spacing * x,
+                self.spacing * y
             )
-        ) for x in range(mesh_size) for y in range(mesh_size)]
+        ) for x in range(1, mesh_size) for y in range(1, mesh_size)]
 
     def connect_graph_random(self) -> None:
         self.graph.set_all_visited(False)
 
-        start_x = self.preset.border_width + self.preset.start_x + self.distance_x
-        start_y = self.preset.border_width + self.preset.start_y + self.distance_y
+        v_start = self.get_vertex_at(self.preset.start[0], self.preset.start[1])
 
-        v_start = self.graph.vertex_at(start_x, start_y)
+        history = [v_start]
+        current = history[0]
 
-        stack = []
-        current = v_start
-
-        stack.append(current)
-
-        while stack:
+        while history:
             if current is None:
-                return
+                break
 
             current.visited = True
 
@@ -60,19 +57,32 @@ class Generator:
                 self.graph.add_edge(edge)
 
                 current = next_vertex
-                stack.append(current)
+                history.append(current)
             else:
-                stack.pop()
-                if stack:
-                    current = stack[-1]
+                history.pop()
+                if history:
+                    current = history[-1]
+
+    def find_path(self):
+        v_start = self.get_vertex_at(*self.preset.start)
+        v_finish = self.get_vertex_at(*self.preset.finish)
+
+        path = self.graph.dfs(v_start, v_finish)
+
+        self.graph._edges = [edge for edge in self.graph._edges if edge in path]
+        # for edge in path:
+        #     if edge not in self.graph._edges:
+        #         self.graph.delete_edge(edge)
 
     def get_unvisited_neighbours(self, vertex: Vertex) -> list[Vertex]:
-        potential_neighbours = [
-            self.get_vertex_by_offset(vertex, -1, 0),
-            self.get_vertex_by_offset(vertex, 1, 0),
+        neighbour_positions = [
+            (-1, 0), (1, 0),  # left and right
+            (0, -1), (0, 1)  # up and down
+        ]
 
-            self.get_vertex_by_offset(vertex, 0, -1),
-            self.get_vertex_by_offset(vertex, 0, 1)
+        potential_neighbours = [
+            self.get_vertex_by_offset(vertex, x, y)
+            for x, y in neighbour_positions
         ]
 
         filtered_neighbours = list(
@@ -85,17 +95,54 @@ class Generator:
         return filtered_neighbours
 
     def get_vertex_by_offset(self, vertex: Vertex, offset_x: int, offset_y: int) -> Vertex | None:
-        border_width = self.preset.border_width
-
         # Calculate the target vertex coordinates
-        target_x = border_width + vertex.x + self.distance_x * offset_x
-        target_y = border_width + vertex.y + self.distance_y * offset_y
+        target_x = vertex.x + self.spacing * offset_x
+        target_y = vertex.y + self.spacing * offset_y
 
-        # Check if the vertex is within the border of the grid
-        if not border_width < target_x < self.preset.grid_width - border_width:
-            return None
+        res = self.graph.vertex_at(target_x, target_y)
 
-        if not border_width < target_y < self.preset.grid_height - border_width:
-            return None
+        return res
 
-        return Vertex(target_x, target_y)
+    def get_vertex_at(self, mesh_x: int, mesh_y: int) -> Vertex | None:
+        # Calculate the target vertex coordinates
+        target_x = self.spacing * (mesh_x + 1)
+        target_y = self.spacing * (mesh_y + 1)
+
+        res = self.graph.find_vertex(Vertex(target_x, target_y))
+
+        return res
+
+    def get_vertex_position(self, mesh_x: int, mesh_y: int) -> tuple[int, int] | None:
+        # Calculate the target vertex coordinates
+        target_x = self.spacing * (mesh_x + 1)
+        target_y = self.spacing * (mesh_y + 1)
+
+        return target_x, target_y
+
+    def paint_all_vertices(self):
+        for vertex in self.graph.vertices:
+            x, y = self.get_vertex_coordinates(vertex)
+            self.map.grid[x][y] = BlockType.FLOOD
+
+    def paint_all_edges(self):
+        for edge in self.graph.edges:
+            self.paint_edge(edge)
+
+    def paint_edge(self, edge: Edge) -> None:
+        if edge.v_from.x == edge.v_to.x:  # Vertical edge
+            y_start, y_end = sorted([edge.v_from.y, edge.v_to.y])
+            for y in range(y_start, y_end):
+                self.map.grid[y][edge.v_to.x - 2] = BlockType.FLOOD
+                self.map.grid[y][edge.v_to.x - 1] = BlockType.FLOOD
+                self.map.grid[y][edge.v_to.x] = BlockType.FLOOD
+
+        elif edge.v_from.y == edge.v_to.y:  # Horizontal edge
+            x_start, x_end = sorted([edge.v_from.x, edge.v_to.x])
+            for x in range(x_start, x_end):
+                self.map.grid[edge.v_to.y - 2][x] = BlockType.FLOOD
+                self.map.grid[edge.v_to.y - 1][x] = BlockType.FLOOD
+                self.map.grid[edge.v_to.y][x] = BlockType.FLOOD
+
+    @staticmethod
+    def get_vertex_coordinates(vertex: Vertex) -> tuple[int, int]:
+        return vertex.x - 1 if vertex.x > 0 else 0, vertex.y - 1 if vertex.y > 0 else 0

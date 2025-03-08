@@ -1,5 +1,5 @@
-from vertex import Vertex
-from edge import Edge
+from src.generator.graph.edge import Edge
+from src.generator.graph.vertex import Vertex
 
 
 class Graph:
@@ -8,8 +8,8 @@ class Graph:
         """
         Creates an empty graph.
         """
-        self._vertices = []
-        self._edges = []
+        self._vertices: list[Vertex] = []
+        self._edges: list[Edge] = []
 
     @property
     def vertices(self) -> list[Vertex]:
@@ -26,7 +26,7 @@ class Graph:
         :param y: The y coordinate of the vertex.
         :return: The vertex from the graph if found, otherwise None.
         """
-        for vertex in self.vertices:
+        for vertex in self._vertices:
             if vertex.x == x and vertex.y == y:
                 return vertex
 
@@ -38,7 +38,7 @@ class Graph:
         :param vertex: The vertex to be checked for.
         :return: The vertex from the existing graph if found, otherwise None.
         """
-        vertex_obj = self.vertex_at(vertex.x, vertex.y) if vertex not in self.vertices else vertex
+        vertex_obj = vertex if vertex in self._vertices else self.vertex_at(vertex.x, vertex.y)
 
         if vertex_obj:
             return vertex_obj
@@ -49,7 +49,7 @@ class Graph:
         :param vertex: The vertex to be checked for.
         :return: True if the vertex is found in the graph, otherwise False.
         """
-        return vertex in self.vertices or self.find_vertex(vertex) is not None
+        return vertex in self._vertices or self.find_vertex(vertex) is not None
 
     def add_vertex(self, vertex: Vertex) -> None:
         """
@@ -85,10 +85,10 @@ class Graph:
         :param edge: The edge to be checked for.
         :return: The edge from the existing graph if found, otherwise None.
         """
-        if edge in self.edges:
+        if edge in self._edges:
             return edge
 
-        for existing_edge in self.edges:
+        for existing_edge in self._edges:
             if existing_edge.has_vertex(edge.v_from) and existing_edge.has_vertex(edge.v_to):
                 return existing_edge
 
@@ -100,7 +100,7 @@ class Graph:
         :param edge: The edge to be checked for.
         :return: True if the edge is found in the graph, otherwise False.
         """
-        return edge in self.edges or self.find_edge(edge) is not None
+        return edge in self._edges or self.find_edge(edge) is not None
 
     def add_edge(self, edge: Edge) -> None:
         """
@@ -185,7 +185,7 @@ class Graph:
         Changes the `visited` value for every vertex in the graph.
         :param visited: The value to change the `visited` value to.
         """
-        for vertex in self.vertices:
+        for vertex in self._vertices:
             vertex.visited = visited
 
     def all_visited(self, visited: bool) -> bool:

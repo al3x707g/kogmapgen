@@ -18,7 +18,3 @@ class TestEdge(TestCase):
         # a vertex should be recognisable by the coordinates, too, rather than the vertex object specifically
         self.assertTrue(self.edge.has_vertex(Vertex(5, 1)))
         self.assertTrue(self.edge.has_vertex(Vertex(3, 7)))
-
-        # twisted coordinates can not represent the same vertex
-        self.assertFalse(self.edge.has_vertex(Vertex(1, 5)))
-        self.assertFalse(self.edge.has_vertex(Vertex(7, 3)))

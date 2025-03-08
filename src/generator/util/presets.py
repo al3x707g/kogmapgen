@@ -13,3 +13,12 @@ class Preset:
     mesh_size: int
     min_width: int
     max_play: int
+
+
+@dataclass(frozen=True)
+class SimplePreset:
+    border_width: int
+    mesh_size: int
+    mesh_spacing: int
+    start: tuple[int, int]
+    finish: tuple[int, int]
