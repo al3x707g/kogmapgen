@@ -28,12 +28,8 @@ class Generator:
 
         mesh_size = self.preset.mesh_size + 1
 
-        [self.graph.add_vertex(
-            Vertex(
-                self.spacing * x,
-                self.spacing * y
-            )
-        ) for x in range(1, mesh_size) for y in range(1, mesh_size)]
+        [self.graph.add_vertex(self.spacing * x, self.spacing * y)
+         for x in range(1, mesh_size) for y in range(1, mesh_size)]
 
     def connect_graph_random(self) -> None:
         self.graph.set_all_visited(False)
@@ -69,10 +65,9 @@ class Generator:
 
         path = self.graph.dfs(v_start, v_finish)
 
-        self.graph._edges = [edge for edge in self.graph._edges if edge in path]
-        # for edge in path:
-        #     if edge not in self.graph._edges:
-        #         self.graph.delete_edge(edge)
+        self.graph.edges = {
+            key: edge for key, edge in self.graph.edges.items() if edge in path
+        }
 
     def get_unvisited_neighbours(self, vertex: Vertex) -> list[Vertex]:
         neighbour_positions = [
@@ -108,7 +103,7 @@ class Generator:
         target_x = self.spacing * (mesh_x + 1)
         target_y = self.spacing * (mesh_y + 1)
 
-        res = self.graph.find_vertex(Vertex(target_x, target_y))
+        res = self.graph.vertex_at(target_x, target_y)
 
         return res
 
@@ -120,12 +115,12 @@ class Generator:
         return target_x, target_y
 
     def paint_all_vertices(self):
-        for vertex in self.graph.vertices:
+        for vertex in self.graph.vertices.values():
             x, y = self.get_vertex_coordinates(vertex)
             self.map.grid[x][y] = BlockType.FLOOD
 
     def paint_all_edges(self):
-        for edge in self.graph.edges:
+        for edge in self.graph.edges.values():
             self.paint_edge(edge)
 
     def paint_edge(self, edge: Edge) -> None:

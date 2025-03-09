@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from src.generator.graph.edge import Edge
 from src.generator.graph.vertex import Vertex
 
@@ -8,16 +10,9 @@ class Graph:
         """
         Creates an empty graph.
         """
-        self._vertices: list[Vertex] = []
-        self._edges: list[Edge] = []
-
-    @property
-    def vertices(self) -> list[Vertex]:
-        return self._vertices[:]
-
-    @property
-    def edges(self) -> list[Edge]:
-        return self._edges[:]
+        self.vertices: dict[tuple[int, int], Vertex] = {}
+        self.edges: dict[tuple[Vertex, Vertex], Edge] = {}
+        self.adjacency: dict[Vertex, list[Vertex]] = defaultdict(list)
 
     def vertex_at(self, x: int, y: int) -> Vertex | None:
         """
@@ -26,22 +21,7 @@ class Graph:
         :param y: The y coordinate of the vertex.
         :return: The vertex from the graph if found, otherwise None.
         """
-        for vertex in self._vertices:
-            if vertex.x == x and vertex.y == y:
-                return vertex
-
-        return None
-
-    def find_vertex(self, vertex: Vertex) -> Vertex | None:
-        """
-        Checks for an existing vertex in the graph and returns the vertex object if found.
-        :param vertex: The vertex to be checked for.
-        :return: The vertex from the existing graph if found, otherwise None.
-        """
-        vertex_obj = vertex if vertex in self._vertices else self.vertex_at(vertex.x, vertex.y)
-
-        if vertex_obj:
-            return vertex_obj
+        return self.vertices.get((x, y), None)
 
     def has_vertex(self, vertex: Vertex) -> bool:
         """
@@ -49,50 +29,35 @@ class Graph:
         :param vertex: The vertex to be checked for.
         :return: True if the vertex is found in the graph, otherwise False.
         """
-        return vertex in self._vertices or self.find_vertex(vertex) is not None
+        return vertex in self.vertices.values()
 
-    def add_vertex(self, vertex: Vertex) -> None:
+    def add_vertex(self, x: int, y: int) -> None:
         """
         Adds a vertex to the graph.
-        :param vertex: The vertex to be added.
+        :param x: The x coordinate of the vertex.
+        :param y: The y coordinate of the vertex.
         """
-        if not self.has_vertex(vertex):
-            self._vertices.append(vertex)
+        if not self.vertex_at(x, y):
+            self.vertices[(x, y)] = Vertex(x, y)
 
     def delete_vertex(self, vertex: Vertex) -> None:
         """
         Deletes a vertex from the graph and removes any edge associated with this vertex.
         :param vertex: The vertex to be deleted.
         """
-        if not self.has_vertex(vertex):
-            return
+        vertex_key = (vertex.x, vertex.y)
 
-        try:
-            if vertex in self.vertices:
-                self._vertices.remove(vertex)
-            else:
-                self._vertices.remove(self.vertex_at(vertex.x, vertex.y))
+        if vertex_key in self.vertices:
+            del self.vertices[vertex_key]
 
-            for edge in self._edges:
-                if vertex in (edge.v_from, edge.v_to):
-                    self.delete_edge(edge)
-        except ValueError:
-            print("An unexpected error has occurred trying to remove a vertex.")
+            if vertex in self.adjacency:
+                for neighbor in list(self.adjacency[vertex]):
+                    edge_key = (vertex, neighbor) if (vertex, neighbor) in self.edges else (neighbor, vertex)
+                    if edge_key in self.edges:
+                        del self.edges[edge_key]
+                    self.adjacency[neighbor].remove(vertex)
 
-    def find_edge(self, edge: Edge) -> Edge | None:
-        """
-        Checks for an existing edge in the graph and returns the edge object if found.
-        :param edge: The edge to be checked for.
-        :return: The edge from the existing graph if found, otherwise None.
-        """
-        if edge in self._edges:
-            return edge
-
-        for existing_edge in self._edges:
-            if existing_edge.has_vertex(edge.v_from) and existing_edge.has_vertex(edge.v_to):
-                return existing_edge
-
-        return None
+                del self.adjacency[vertex]
 
     def has_edge(self, edge: Edge) -> bool:
         """
@@ -100,33 +65,49 @@ class Graph:
         :param edge: The edge to be checked for.
         :return: True if the edge is found in the graph, otherwise False.
         """
-        return edge in self._edges or self.find_edge(edge) is not None
+        return (edge.v_from, edge.v_to) in self.edges or (edge.v_to, edge.v_from) in self.edges
+
+    def find_edge(self, v_from: Vertex, v_to: Vertex) -> Edge | None:
+        """
+        Finds an edge connecting two vertices in the graph.
+        :param v_from: The starting vertex of the edge.
+        :param v_to: The ending vertex of the edge.
+        :return: The edge connecting the two vertices, or None if no such edge exists.
+        """
+        if v_to in self.adjacency.get(v_from, []):
+            return self.edges.get((v_from, v_to)) or self.edges.get((v_to, v_from))
+        return None
 
     def add_edge(self, edge: Edge) -> None:
         """
         Adds an edge to the graph. If the edge's vertices are not yet part of the graph, they are added too.
         :param edge: The edge to be added.
         """
-        if self.has_edge(edge) or edge.v_to == edge.v_from:
+        if edge.v_to == edge.v_from or (edge.v_from, edge.v_to) in self.edges:
             return
 
-        self._edges.append(edge)
+        self.edges[(edge.v_from, edge.v_to)] = edge
         self._add_missing_vertices(edge)
+
+        self.adjacency[edge.v_from].append(edge.v_to)
+        self.adjacency[edge.v_to].append(edge.v_from)
 
     def delete_edge(self, edge: Edge) -> None:
         """
         Deletes an edge from the graph and removes the edge's vertices, that are not referenced by any other edge.
         :param edge: The edge to be removed.
         """
-        edge_obj = self.find_edge(edge)
+        edge_key = (edge.v_from, edge.v_to)
 
-        if not edge_obj:
+        if edge_key not in self.edges:
             return
 
-        self._edges.remove(edge_obj)
+        del self.edges[edge_key]
 
-        # Delete those vertices, that are not referenced by at least one other edge
-        for vertex in (edge_obj.v_from, edge_obj.v_to):
+        self.adjacency[edge.v_from].remove(edge.v_to)
+        self.adjacency[edge.v_to].remove(edge.v_from)
+
+        for vertex in (edge.v_from, edge.v_to):
             if not self.is_vertex_referenced(vertex):
                 self.delete_vertex(vertex)
 
@@ -136,15 +117,7 @@ class Graph:
         :param vertex: The vertex to be checked with.
         :return: A list of neighbours, or an empty list if there are none.
         """
-        result = []
-
-        for edge in self._edges:
-            if edge.v_from == vertex:
-                result.append(edge.v_to)
-            elif edge.v_to == vertex:
-                result.append(edge.v_from)
-
-        return result
+        return self.adjacency.get(vertex, [])
 
     def has_neighbours(self, vertex: Vertex) -> bool:
         """
@@ -152,11 +125,7 @@ class Graph:
         :param vertex: The vertex to be checked.
         :return: True if the vertex has any neighbours, otherwise False.
         """
-        for edge in self._edges:
-            if vertex in (edge.v_from, edge.v_to):
-                return True
-
-        return False
+        return vertex in self.adjacency and bool(self.adjacency[vertex])
 
     def has_unvisited_neighbours(self, vertex: Vertex) -> bool:
         """
@@ -178,14 +147,14 @@ class Graph:
         :param vertex: The vertex to check for.
         :return: True if the vertex is part of at least one edge, otherwise False.
         """
-        return any(edge.has_vertex(vertex) for edge in self._edges)
+        return bool(self.adjacency.get(vertex, None))
 
     def set_all_visited(self, visited: bool) -> None:
         """
         Changes the `visited` value for every vertex in the graph.
         :param visited: The value to change the `visited` value to.
         """
-        for vertex in self._vertices:
+        for vertex in self.vertices.values():
             vertex.visited = visited
 
     def all_visited(self, visited: bool) -> bool:
@@ -194,7 +163,7 @@ class Graph:
         :param visited: Can be True to check if all vertices are visited, or False to check if none are visited.
         :return: True if all vertices' visited state match the `visited` parameter, otherwise False.
         """
-        for vertex in self._vertices:
+        for vertex in self.vertices.values():
             if vertex.visited is not visited:
                 return False
 
@@ -236,11 +205,11 @@ class Graph:
             edge_to = stack[-1] if stack else None
 
             if edge_to:
-                result.append(self.find_edge(Edge(edge_from, edge_to)))
+                result.append(self.find_edge(edge_from, edge_to))
 
         return result
 
     def _add_missing_vertices(self, edge: Edge) -> None:
         for vertex in (edge.v_from, edge.v_to):
-            if not self.has_vertex(vertex):
-                self.add_vertex(vertex)
+            if (vertex.x, vertex.y) not in self.vertices:
+                self.vertices[(vertex.x, vertex.y)] = vertex
