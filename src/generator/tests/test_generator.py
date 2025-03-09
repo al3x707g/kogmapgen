@@ -45,6 +45,6 @@ class TestGenerator(TestCase):
 
         self.assertEqual(len(res), 4)
         for v in res:
-            self.assertIn(v, self.gen.graph._vertices)
+            self.assertIn(v, self.gen.graph.vertices.values())
 
 
