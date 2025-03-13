@@ -13,3 +13,9 @@ class Edge:
             v is vertex or (v.x == vertex.x and v.y == vertex.y)
             for v in (self.v_to, self.v_from)
         )
+
+    def is_vertical(self) -> bool:
+        return self.v_from.x == self.v_to.x
+
+    def is_horizontal(self) -> bool:
+        return self.v_from.y == self.v_to.y
