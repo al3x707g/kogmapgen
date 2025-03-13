@@ -1,10 +1,12 @@
 import random
 
+from noise import pnoise1
 from src.generator.graph.edge import Edge
 from src.generator.graph.graph import Graph
 from src.generator.graph.vertex import Vertex
 from src.generator.map.map import Map
 from src.generator.util.blocks import BlockType
+from typing import Literal
 
 
 class Generator:
@@ -21,6 +23,7 @@ class Generator:
         self.create_vertex_mesh()
         self.connect_graph_random()
         self.find_path()
+        self.paint_grouped_edges(method="perlin")
 
     def create_vertex_mesh(self) -> None:
         if not self.graph:
@@ -65,9 +68,11 @@ class Generator:
 
         path = self.graph.dfs(v_start, v_finish)
 
-        self.graph.edges = {
-            key: edge for key, edge in self.graph.edges.items() if edge in path
-        }
+        unreferenced_edges = [edge for edge in self.graph.edges.values() if edge not in path]
+
+        for edge in unreferenced_edges:
+            if self.graph.has_edge(edge):
+                self.graph.delete_edge(edge)
 
     def get_unvisited_neighbours(self, vertex: Vertex) -> list[Vertex]:
         neighbour_positions = [
@@ -119,24 +124,103 @@ class Generator:
             x, y = self.get_vertex_coordinates(vertex)
             self.map.grid[x][y] = BlockType.FLOOD
 
-    def paint_all_edges(self):
-        for edge in self.graph.edges.values():
-            self.paint_edge(edge)
+    def paint_grouped_edges(self, method: str = None | Literal["perlin"]):
+        for edge in self.group_edges():
+            match method:
+                case "perlin":
+                    self.paint_edge_perlin(edge)
+                case _:
+                    self.paint_edge(edge)
+
+    def paint_edge_perlin(self, edge: Edge, scale=0.07, amplitude=4) -> None:
+        vertical = edge.is_vertical()
+
+        # get start and end vertex position
+        start, end = sorted([edge.v_from.y, edge.v_to.y] if vertical else [edge.v_from.x, edge.v_to.x])
+
+        # base is base coordinate the offset is applied to
+        base = edge.v_to.x if vertical else edge.v_to.y
+
+        for i, c in enumerate(range(start, end)):
+            # get offset using perlin noise
+            noise = pnoise1(i * scale)
+            offset = int(noise * amplitude)
+
+            # calculate new position by applying the offset to the base position
+            pos = base + offset
+
+            if vertical:
+                self.map.grid[c][pos - 2] = BlockType.EMPTY
+                self.map.grid[c][pos - 1] = BlockType.EMPTY
+                self.map.grid[c][pos] = BlockType.EMPTY
+            else:
+                self.map.grid[pos - 2][c] = BlockType.EMPTY
+                self.map.grid[pos - 1][c] = BlockType.EMPTY
+                self.map.grid[pos][c] = BlockType.EMPTY
 
     def paint_edge(self, edge: Edge) -> None:
-        if edge.v_from.x == edge.v_to.x:  # Vertical edge
-            y_start, y_end = sorted([edge.v_from.y, edge.v_to.y])
-            for y in range(y_start, y_end):
-                self.map.grid[y][edge.v_to.x - 2] = BlockType.FLOOD
-                self.map.grid[y][edge.v_to.x - 1] = BlockType.FLOOD
-                self.map.grid[y][edge.v_to.x] = BlockType.FLOOD
+        vertical = edge.is_vertical()
 
-        elif edge.v_from.y == edge.v_to.y:  # Horizontal edge
-            x_start, x_end = sorted([edge.v_from.x, edge.v_to.x])
-            for x in range(x_start, x_end):
-                self.map.grid[edge.v_to.y - 2][x] = BlockType.FLOOD
-                self.map.grid[edge.v_to.y - 1][x] = BlockType.FLOOD
-                self.map.grid[edge.v_to.y][x] = BlockType.FLOOD
+        start, end = sorted([edge.v_from.y, edge.v_to.y] if vertical else [edge.v_from.x, edge.v_to.x])
+
+        for c in range(start, end):
+            if vertical:
+                self.map.grid[c][edge.v_to.x - 2] = BlockType.FLOOD
+                self.map.grid[c][edge.v_to.x - 1] = BlockType.FLOOD
+                self.map.grid[c][edge.v_to.x] = BlockType.FLOOD
+            else:
+                self.map.grid[edge.v_to.y - 2][c] = BlockType.FLOOD
+                self.map.grid[edge.v_to.y - 1][c] = BlockType.FLOOD
+                self.map.grid[edge.v_to.y][c] = BlockType.FLOOD
+
+    def group_edges(self):
+        edge_groups = self.get_continuous_edge_groups()
+
+        result = []
+
+        for group in edge_groups:
+            is_vertical = group[0].is_vertical()
+
+            if is_vertical:
+                lowest_vertex = min((v for edge in group for v in (edge.v_to, edge.v_from)), key=lambda v: v.y)
+                highest_vertex = max((v for edge in group for v in (edge.v_to, edge.v_from)), key=lambda v: v.y)
+            else:
+                lowest_vertex = min((v for edge in group for v in (edge.v_to, edge.v_from)), key=lambda v: v.x)
+                highest_vertex = max((v for edge in group for v in (edge.v_to, edge.v_from)), key=lambda v: v.x)
+
+            result.append(Edge(lowest_vertex, highest_vertex))
+
+        return result
+
+    def get_continuous_edge_groups(self):
+        result = []
+        visited_edges = set()
+
+        for edge in self.graph.edges.values():
+            if edge in visited_edges:
+                continue
+
+            stack, group = [edge.v_from], []
+            is_vertical = None
+
+            while stack:
+                vertex = stack.pop()
+
+                for neighbor in self.graph.adjacency[vertex]:
+                    edge = self.graph.find_edge(vertex, neighbor)
+                    if edge and edge not in visited_edges:
+                        if is_vertical is None:
+                            is_vertical = edge.is_vertical()
+
+                        if edge.is_vertical() == is_vertical:
+                            group.append(edge)
+                            visited_edges.add(edge)
+                            stack.append(neighbor)
+
+            if group:
+                result.append(group)
+
+        return result
 
     @staticmethod
     def get_vertex_coordinates(vertex: Vertex) -> tuple[int, int]:
