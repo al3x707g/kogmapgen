@@ -1,11 +1,16 @@
 import random
 
+import numpy as np
+
 from noise import pnoise1
+from scipy.interpolate import interp1d
 from src.generator.graph.edge import Edge
 from src.generator.graph.graph import Graph
 from src.generator.graph.vertex import Vertex
 from src.generator.map.map import Map
 from src.generator.util.blocks import BlockType
+from src.generator.util.utilities import bresenham_line
+from src.generator.util.utilities import generate_widths
 from typing import Literal
 
 
@@ -23,7 +28,7 @@ class Generator:
         self.create_vertex_mesh()
         self.connect_graph_random()
         self.find_path()
-        self.paint_grouped_edges(method="perlin")
+        self.paint_smooth_path()
 
     def create_vertex_mesh(self) -> None:
         if not self.graph:
@@ -221,6 +226,42 @@ class Generator:
                 result.append(group)
 
         return result
+
+    def calculate_catmull_rom_splines(self) -> list[Vertex]:
+        vertices = [v for v in self.graph.adjacency.keys()]
+
+        if len(vertices) < 4:
+            return vertices  # Not enough points for interpolation
+
+        x_vals, y_vals = zip(*[(v.x, v.y) for v in vertices])
+
+        t = np.linspace(0, 1, len(vertices))
+        interp_x = interp1d(t, x_vals, kind="cubic")
+        interp_y = interp1d(t, y_vals, kind="cubic")
+
+        smooth_t = np.linspace(0, 1, len(vertices) * 5)
+        smooth_x = interp_x(smooth_t)
+        smooth_y = interp_y(smooth_t)
+
+        return [Vertex(int(x), int(y)) for x, y in zip(smooth_x, smooth_y)]
+
+    def paint_connected_vertices(self, vertices: list[Vertex]) -> None:
+        # generate different widths for every vertex
+        widths = generate_widths(len(vertices))
+
+        for i in range(len(vertices) - 1):
+            line_points = bresenham_line(vertices[i], vertices[i + 1])
+
+            width = widths[i]
+
+            for x, y in line_points:
+                for dx in range(-width, width + 1):
+                    for dy in range(-width, width + 1):
+                        self.map.grid[y + dy][x + dx] = BlockType.EMPTY
+
+    def paint_smooth_path(self):
+        vertices = self.calculate_catmull_rom_splines()
+        self.paint_connected_vertices(vertices)
 
     @staticmethod
     def get_vertex_coordinates(vertex: Vertex) -> tuple[int, int]:
